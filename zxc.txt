@@ -1,0 +1,200 @@
+let questions = [];
+let current = 0;
+let score = 0;
+
+// Elemente joc
+const questionBox = document.getElementById("question-box");
+const dots = document.getElementById("dots");
+const input = document.getElementById("answer-input");
+const submitBtn = document.getElementById("submit-btn");
+const feedback = document.getElementById("feedback");
+const skipBtn = document.getElementById("skip-btn");
+const restartBtn = document.getElementById("restart-btn");
+const scoreBox = document.getElementById("score-box");
+
+// === Scor ===
+function updateScore() {
+  scoreBox.textContent = `⭐ Scor: ${score}`;
+}
+
+// === Confetti ===
+const canvas = document.getElementById("confetti");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let confetti = [];
+function launchConfetti() {
+  confetti = Array.from({ length: 200 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -10,
+    c: `hsl(${Math.random() * 360},100%,50%)`,
+    s: Math.random() * 6 + 4,
+    vy: Math.random() * 3 + 2,
+    vx: (Math.random() - 0.5) * 2,
+  }));
+}
+function drawConfetti() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  confetti.forEach(p => {
+    ctx.fillStyle = p.c;
+    ctx.fillRect(p.x, p.y, p.s, p.s);
+    p.x += p.vx;
+    p.y += p.vy;
+  });
+  confetti = confetti.filter(p => p.y < canvas.height);
+  requestAnimationFrame(drawConfetti);
+}
+drawConfetti();
+
+// === Timer ===
+const timerBox = document.getElementById("timer-box");
+let timerInterval = null;
+let timerValue = 0;
+let isStopwatch = true;
+
+function startTimer(seconds = null) {
+  clearInterval(timerInterval);
+  if (seconds) { timerValue = seconds; isStopwatch = false; }
+  else { timerValue = 0; isStopwatch = true; }
+  timerInterval = setInterval(() => {
+    if (isStopwatch) timerValue++;
+    else { timerValue--; if (timerValue <= 0) clearInterval(timerInterval); }
+    updateTimerDisplay();
+  }, 1000);
+}
+function updateTimerDisplay() {
+  const m = String(Math.floor(timerValue/60)).padStart(2,"0");
+  const s = String(timerValue%60).padStart(2,"0");
+  timerBox.textContent = `⏱️ ${m}:${s}`;
+}
+updateTimerDisplay();
+
+// === Joc ===
+function loadQuestion() {
+  if (questions.length === 0) {
+    questionBox.textContent = "⏳ Așteptăm întrebările profesorului...";
+    dots.innerHTML = "";
+    input.style.display = "none";
+    submitBtn.style.display = "none";
+    skipBtn.style.display = "none";
+    restartBtn.style.display = "none";
+    return;
+  }
+  if (current >= questions.length) {
+    questionBox.textContent = "🎉 Ai terminat setul!";
+    dots.innerHTML = "";
+    input.style.display = "none";
+    submitBtn.style.display = "none";
+    skipBtn.style.display = "none";
+    restartBtn.style.display = "inline-block";
+    feedback.textContent = "";
+    return;
+  }
+  const q = questions[current];
+  questionBox.textContent = q.q;
+  dots.innerHTML = "";
+  for (let i=0; i<q.a.length; i++) {
+    const dot = document.createElement("div");
+    dot.className = "dot";
+    if (q.a[i] === " ") dot.style.visibility = "hidden";
+    dots.appendChild(dot);
+  }
+  input.value = "";
+  input.style.display = "inline-block";
+  submitBtn.style.display = "inline-block";
+  skipBtn.style.display = "inline-block";
+  restartBtn.style.display = "none";
+  feedback.textContent = "";
+  feedback.className = "";
+}
+
+function checkAnswer() {
+  const q = questions[current];
+  if (!q) return;
+  if (input.value.trim().toLowerCase() === q.a.trim().toLowerCase()) {
+    feedback.textContent = "🎉 Corect!";
+    feedback.className = "good";
+    score++;
+    updateScore();
+    launchConfetti();
+    setTimeout(() => { current++; loadQuestion(); }, 1200);
+  } else {
+    feedback.textContent = "😅 Mai încearcă!";
+    feedback.className = "bad";
+  }
+}
+
+// input handlers
+input.addEventListener("keyup", (e) => {
+  // complete bulinele live
+  const typed = input.value;
+  document.querySelectorAll(".dot").forEach((dot, i) => {
+    dot.textContent = typed[i] ? typed[i] : "";
+  });
+
+  if (e.key === "Enter") checkAnswer();
+});
+submitBtn.addEventListener("click", checkAnswer);
+
+skipBtn.addEventListener("click", () => { current++; loadQuestion(); });
+restartBtn.addEventListener("click", () => { current = 0; score=0; updateScore(); loadQuestion(); });
+
+// === Panou profesor ===
+const teacherBtn = document.getElementById("teacher-btn");
+const teacherPanel = document.getElementById("teacher-panel");
+const closePanel = document.getElementById("close-panel");
+
+teacherBtn.addEventListener("click", () => { 
+  teacherPanel.style.display = "block"; 
+  renderQuestionsList(); 
+});
+closePanel.addEventListener("click", () => { 
+  teacherPanel.style.display = "none"; 
+});
+
+const addQuestionBtn = document.getElementById("add-question");
+const newQ = document.getElementById("new-question");
+const newA = document.getElementById("new-answer");
+const questionsList = document.getElementById("questions-list");
+const clearBtn = document.getElementById("clear-questions");
+
+addQuestionBtn.addEventListener("click", () => {
+  if (newQ.value && newA.value) {
+    questions.push({ q: newQ.value, a: newA.value });
+    newQ.value = ""; newA.value = "";
+    renderQuestionsList();
+    if (questions.length === 1) { current = 0; loadQuestion(); }
+  }
+});
+clearBtn.addEventListener("click", () => {
+  questions = [];
+  current = 0;
+  renderQuestionsList();
+  loadQuestion();
+});
+
+function renderQuestionsList() {
+  questionsList.innerHTML = "";
+  questions.forEach((q,i) => {
+    questionsList.innerHTML += `<div>${i+1}. ${q.q} (R: ${q.a}) <button onclick="deleteQuestion(${i})">🗑️</button></div>`;
+  });
+}
+window.deleteQuestion = function(i) {
+  questions.splice(i,1);
+  if (current >= questions.length) current = 0;
+  renderQuestionsList();
+  loadQuestion();
+};
+
+// Timer controls
+document.getElementById("start-timer").addEventListener("click", () => {
+  let val = parseInt(document.getElementById("set-timer").value);
+  if (val > 0) startTimer(val); else startTimer();
+});
+document.getElementById("stop-timer").addEventListener("click", () => clearInterval(timerInterval));
+document.getElementById("reset-timer").addEventListener("click", () => { clearInterval(timerInterval); timerValue=0; updateTimerDisplay(); });
+
+// start
+updateScore();
+loadQuestion();
